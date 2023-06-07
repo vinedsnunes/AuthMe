@@ -1,7 +1,11 @@
-﻿using AuthMe.Application.DTOs.Request;
+﻿using AuthMe.Api.Controllers.Shared;
+using AuthMe.Application.DTOs.Request;
 using AuthMe.Application.DTOs.Response;
 using AuthMe.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Security.Claims;
 
 namespace AuthMe.Api.Controllers.v1
 {
@@ -36,7 +40,11 @@ namespace AuthMe.Api.Controllers.v1
             var result = await _identityService.SignUp(request);
             if (result.Success)
                 return Ok(result);
-            //else if(result.Errors.Count()  > 0)
+            else if (result.Errors.Count > 0)
+            {
+                var problemDetails = new CustomProblemDetails(HttpStatusCode.BadRequest, Request, errors: result.Errors);
+                return BadRequest(problemDetails);
+            }
 
             return StatusCode(StatusCodes.Status500InternalServerError);
         }
@@ -69,5 +77,34 @@ namespace AuthMe.Api.Controllers.v1
             return Unauthorized();
         }
 
+        /// <summary>
+        /// Login do usuário via refresh token.
+        /// </summary>
+        /// <remarks>
+        /// </remarks>
+        /// <returns></returns>
+        /// <response code="200">Login realizado com sucesso</response>
+        /// <response code="400">Retorna erros de validação</response>
+        /// <response code="401">Erro caso usuário não esteja autorizado</response>
+        /// <response code="500">Retorna erros caso ocorram</response>
+        [ProducesResponseType(typeof(UserSignUpResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+        [Authorize]
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<UserSignUpResponse>> RefreshToken()
+        {
+            var identity = HttpContext.User.Identity as ClaimsIdentity;
+            var userId = identity?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId is null)
+                return BadRequest();
+
+            var result = await _identityService.SignInWithoutPassword(userId);
+            if (result.Success)
+                return Ok(result);
+
+            return Unauthorized();
+        }
     }
 }

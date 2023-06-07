@@ -71,6 +71,21 @@ namespace AuthMe.Identity.Services
             return response;
         }
 
+        public async Task<UserSignInResponse> SignInWithoutPassword(string userId)
+        {
+            var response = new UserSignInResponse();
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (await _userManager.IsLockedOutAsync(user))
+                response.AddError("Essa conta está bloqueada");
+            else if (!await _userManager.IsEmailConfirmedAsync(user))
+                response.AddError("Essa conta precisa confirmar seu e-mail antes de realizar o login");
+
+            if (response.Success)
+                return await GenerateCredencials(user.Email);
+
+            return response;
+        }
 
         private string GenerateToken(IEnumerable<Claim> claims, DateTime dateExpiration)
         {
@@ -78,7 +93,7 @@ namespace AuthMe.Identity.Services
                 issuer: _jwtOptions.Issuer,
                 audience: _jwtOptions.Audience,
                 claims: claims,
-                //notBefore: DateTime.Now,
+                notBefore: DateTime.Now,
                 expires: dateExpiration,
                 signingCredentials: _jwtOptions.SigningCredentials);
 
@@ -87,13 +102,14 @@ namespace AuthMe.Identity.Services
 
         private async Task<IList<Claim>> GetClaims(IdentityUser user, bool addClaimsUser)
         {
-            var claims = new List<Claim>();
-
-            claims.Add(new Claim(JwtRegisteredClaimNames.Sub, user.Id));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Nbf, DateTime.Now.ToString()));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Iat, DateTime.Now.ToString()));
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Nbf, DateTime.Now.ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTime.Now.ToString())
+            };
 
             if (addClaimsUser)
             {
@@ -115,11 +131,11 @@ namespace AuthMe.Identity.Services
             var accessTokenClaims = await GetClaims(user, addClaimsUser: true);
             var refreshTokenClaims = await GetClaims(user, addClaimsUser: false);
 
-            var dataExpiracaoAccessToken = DateTime.Now.AddSeconds(_jwtOptions.AccessTokenExpiration);
-            var dataExpiracaoRefreshToken = DateTime.Now.AddSeconds(_jwtOptions.RefreshTokenExpiration);
+            var dateExpiractionAccessToken = DateTime.Now.AddSeconds(_jwtOptions.AccessTokenExpiration);
+            var dateExpiractionRefreshToken = DateTime.Now.AddSeconds(_jwtOptions.RefreshTokenExpiration);
 
-            var accessToken = GenerateToken(accessTokenClaims, dataExpiracaoAccessToken);
-            var refreshToken = GenerateToken(refreshTokenClaims, dataExpiracaoRefreshToken);
+            var accessToken = GenerateToken(accessTokenClaims, dateExpiractionAccessToken);
+            var refreshToken = GenerateToken(refreshTokenClaims, dateExpiractionRefreshToken);
 
             return new UserSignInResponse
             (

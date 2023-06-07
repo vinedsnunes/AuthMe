@@ -7,5 +7,6 @@ namespace AuthMe.Application.Interfaces.Services
     {
         Task<UserSignUpResponse> SignUp(UserSignUpRequest request);
         Task<UserSignInResponse> SignIn(UserSignInRequest request);
+        Task<UserSignInResponse> SignInWithoutPassword(string userId);
     }
 }

@@ -1,4 +1,5 @@
 ﻿using AuthMe.Application.Interfaces.Services;
+using AuthMe.Identity.Configurations;
 using AuthMe.Identity.Data;
 using AuthMe.Identity.Services;
 using Microsoft.AspNetCore.Identity;
@@ -19,6 +20,7 @@ namespace AuthMe.Api.IoC
                     .AddEntityFrameworkStores<IdentityDataContext>()
                     .AddDefaultTokenProviders();
 
+            services.AddSingleton<RedisConnector>();
             services.AddScoped<IIdentityService, IdentityService>();
         }
     }

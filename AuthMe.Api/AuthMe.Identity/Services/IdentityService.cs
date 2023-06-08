@@ -19,14 +19,17 @@ namespace AuthMe.Identity.Services
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly JwtOptions _jwtOptions;
+        private readonly RedisConnector _redisConnector;
 
         public IdentityService(SignInManager<IdentityUser> signInManager,
             UserManager<IdentityUser> userManager,
-            IOptions<JwtOptions> jwtOptions)
+            IOptions<JwtOptions> jwtOptions,
+            RedisConnector redisConnector)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _jwtOptions = jwtOptions.Value;
+            _redisConnector = redisConnector;
         }
 
         public async Task<UserSignUpResponse> SignUp(UserSignUpRequest request)
@@ -87,7 +90,7 @@ namespace AuthMe.Identity.Services
             return response;
         }
 
-        private string GenerateToken(IEnumerable<Claim> claims, DateTime dateExpiration)
+        private async Task<string> GenerateToken(IEnumerable<Claim> claims, DateTime dateExpiration)
         {
             var jwt = new JwtSecurityToken(
                 issuer: _jwtOptions.Issuer,
@@ -97,7 +100,15 @@ namespace AuthMe.Identity.Services
                 expires: dateExpiration,
                 signingCredentials: _jwtOptions.SigningCredentials);
 
-            return new JwtSecurityTokenHandler().WriteToken(jwt);
+            var token = new JwtSecurityTokenHandler().WriteToken(jwt);
+
+            var redisKey = $"token:{jwt.Id}";
+            var redisValue = token;
+            var redisExpiry = dateExpiration - DateTime.Now;
+
+            await _redisConnector.GetDatabase().StringSetAsync(redisKey, redisValue, redisExpiry);
+
+            return token;
         }
 
         private async Task<IList<Claim>> GetClaims(IdentityUser user, bool addClaimsUser)
@@ -134,8 +145,8 @@ namespace AuthMe.Identity.Services
             var dateExpiractionAccessToken = DateTime.Now.AddSeconds(_jwtOptions.AccessTokenExpiration);
             var dateExpiractionRefreshToken = DateTime.Now.AddSeconds(_jwtOptions.RefreshTokenExpiration);
 
-            var accessToken = GenerateToken(accessTokenClaims, dateExpiractionAccessToken);
-            var refreshToken = GenerateToken(refreshTokenClaims, dateExpiractionRefreshToken);
+            var accessToken = await GenerateToken(accessTokenClaims, dateExpiractionAccessToken);
+            var refreshToken = await GenerateToken(refreshTokenClaims, dateExpiractionRefreshToken);
 
             return new UserSignInResponse
             (

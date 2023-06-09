@@ -106,5 +106,34 @@ namespace AuthMe.Api.Controllers.v1
 
             return Unauthorized();
         }
+
+        /// <summary>
+        /// Logout de usuário.
+        /// </summary>
+        /// <remarks>
+        /// </remarks>
+        /// <returns></returns>
+        /// <response code="204">Logout realizado com sucesso</response>
+        /// <response code="400">Retorna erros de validação</response>
+        /// <response code="500">Retorna erros caso ocorram</response>
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+        [Authorize]
+        [HttpPost("sign-out")]
+        public async Task<IActionResult> SignOut()
+        {
+            var identity = HttpContext.User.Identity as ClaimsIdentity;
+            var userId = identity?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId is null)
+                return BadRequest();
+
+            await _identityService.SignOut(userId);
+
+            // Outras operações de logout, se necessário
+
+            return NoContent();
+        }
+
     }
 }

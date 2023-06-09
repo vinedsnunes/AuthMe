@@ -5,7 +5,6 @@ namespace AuthMe.Identity.Configurations
     public class RedisConnector
     {
         private readonly ConnectionMultiplexer _connection;
-
         public RedisConnector()
         {
             string redisConnectionString = "localhost:6379"; // Altere para a configuração correta do seu Redis Server

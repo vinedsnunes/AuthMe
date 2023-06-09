@@ -74,6 +74,12 @@ namespace AuthMe.Identity.Services
             return response;
         }
 
+        public async Task SignOut(string userId)
+        {
+            var redisKey = $"token:{userId}";
+            await _redisConnector.GetDatabase().KeyDeleteAsync(redisKey);
+        }
+
         public async Task<UserSignInResponse> SignInWithoutPassword(string userId)
         {
             var response = new UserSignInResponse();
@@ -90,7 +96,7 @@ namespace AuthMe.Identity.Services
             return response;
         }
 
-        private async Task<string> GenerateToken(IEnumerable<Claim> claims, DateTime dateExpiration)
+        private string GenerateToken(IEnumerable<Claim> claims, DateTime dateExpiration)
         {
             var jwt = new JwtSecurityToken(
                 issuer: _jwtOptions.Issuer,
@@ -100,15 +106,7 @@ namespace AuthMe.Identity.Services
                 expires: dateExpiration,
                 signingCredentials: _jwtOptions.SigningCredentials);
 
-            var token = new JwtSecurityTokenHandler().WriteToken(jwt);
-
-            var redisKey = $"token:{jwt.Id}";
-            var redisValue = token;
-            var redisExpiry = dateExpiration - DateTime.Now;
-
-            await _redisConnector.GetDatabase().StringSetAsync(redisKey, redisValue, redisExpiry);
-
-            return token;
+            return new JwtSecurityTokenHandler().WriteToken(jwt);
         }
 
         private async Task<IList<Claim>> GetClaims(IdentityUser user, bool addClaimsUser)
@@ -145,8 +143,15 @@ namespace AuthMe.Identity.Services
             var dateExpiractionAccessToken = DateTime.Now.AddSeconds(_jwtOptions.AccessTokenExpiration);
             var dateExpiractionRefreshToken = DateTime.Now.AddSeconds(_jwtOptions.RefreshTokenExpiration);
 
-            var accessToken = await GenerateToken(accessTokenClaims, dateExpiractionAccessToken);
-            var refreshToken = await GenerateToken(refreshTokenClaims, dateExpiractionRefreshToken);
+            var accessToken = GenerateToken(accessTokenClaims, dateExpiractionAccessToken);
+            var refreshToken = GenerateToken(refreshTokenClaims, dateExpiractionRefreshToken);
+
+            var redisKey = $"token:{user.Id}";
+            var accessTokenExists = await _redisConnector.GetDatabase().KeyExistsAsync(redisKey);
+            var redisExpiry = dateExpiractionAccessToken - DateTime.Now;
+            if (!accessTokenExists)
+                await _redisConnector.GetDatabase().StringSetAsync(redisKey, redisKey, redisExpiry);
+
 
             return new UserSignInResponse
             (
